@@ -7,10 +7,10 @@ import (
 
 func main() {
 	config := &twitterstream.Config{
-		ConsumerKey:      "ohBNaRJK7MQrRuBw0SbwQ",
-		ConsumerSecret:   "68M17oEE70Yg6ActFJgtulLu2NJi6ZjYDPVLKBAVwYc",
-		OAuthToken:       "1106913162-fRKyqX9LcLINTMZ59w8fq0vmoA7Reh6eyuMcQzD",
-		OAuthTokenSecret: "nKiH5o7ZTy0nGn0DaiNOEzF1pV5VitiWTbrsjK0nExM",
+		ConsumerKey:      "YOUR CONSUMER KEY",
+		ConsumerSecret:   "YOUR CONSUMER SECRET",
+		OAuthToken:       "YOUR OAUTH TOKEN",
+		OAuthTokenSecret: "YOUR OAUTH TOKEN SECRET",
 	}
 	client := twitterstream.NewClient(config)
 	client.HandleFunc("tweet", func(s *twitterstream.Stream) {
