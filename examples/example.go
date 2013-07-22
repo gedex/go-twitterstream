@@ -16,12 +16,6 @@ func main() {
 	client.HandleFunc("tweet", func(s *twitterstream.Stream) {
 		log.Printf("user %v tweets: %v\n", s.Tweet.User.ScreenName, s.Tweet.Text)
 	})
-	client.HandleFunc("limit", func(s *twitterstream.Stream) {
-		log.Printf("limit notice: %v\n", s.LimitNotice)
-	})
-	client.HandleFunc("delete", func(s *twitterstream.Stream) {
-		log.Printf("delete notice %+v\n", s.DeleteNotice.Delete.Status)
-	})
 
 	sf := map[string]string{
 		"track": "macet, jakarta",
