@@ -60,7 +60,8 @@ type Client struct {
 	reconnectTimeout int
 }
 
-// NewClient returns a new Twitter Streaming client.
+// NewClient returns a new Twitter Streaming client. It expects
+// conf with valid credentials.
 func NewClient(conf *Config) *Client {
 
 	_baseURL := DefaultBaseURL
@@ -81,6 +82,8 @@ func NewClient(conf *Config) *Client {
 	return c
 }
 
+// RequestParams represents parameters used when requesting stream
+// to any stream endpoints.
 type RequestParams struct {
 	Method   string
 	Endpoint string
@@ -89,6 +92,10 @@ type RequestParams struct {
 	OAuth    map[string]string
 }
 
+// NewRequest cretes a strema request. A relative URL can be provided in urlStr,
+// in which case it is resolved relative to the baseURL of the Client.
+// Relative URLs should always be specified without a preceding slash. The value
+// of body is url encoded and included as the request body if specified.
 func (c *Client) NewRequest(method, urlStr string, body map[string]string) (*http.Request, error) {
 	rel, err := url.Parse(urlStr)
 	if err != nil {
@@ -139,6 +146,11 @@ func (c *Client) NewRequest(method, urlStr string, body map[string]string) (*htt
 	return req, nil
 }
 
+// Do sends a stream request and returns the stream response. The stream
+// response consists of a series of newline-delimited messages, where
+// "newline" is considered to be \r\n (in hex, 0x0D 0x0A) and "message"
+// is a JSON encoded data structure or a blank line. The return values
+// should always be consumed by DispatchResponse.
 func (c *Client) Do(req *http.Request) (*http.Response, error) {
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -154,7 +166,7 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 }
 
 // DispatchResponse reads http.Response and dispatches the chunk
-// to ProcessStream.
+// to ProcessStream until client is closed.
 func (c *Client) DispatchResponse(r *http.Response) error {
 	reader := bufio.NewReader(r.Body)
 	for {
@@ -179,10 +191,14 @@ func (c *Client) DispatchResponse(r *http.Response) error {
 	}
 }
 
+// Disconnect closes the client from the stream.
 func (c *Client) Disconnect() {
 	c.closed = true
 }
 
+// streamSwitcher unmarshall the raw into general container
+// which then decoded into more specific type if matches with
+// any defined stream type.
 func (c *Client) streamSwitcher(raw []byte) {
 	var v map[string]interface{}
 
@@ -193,42 +209,63 @@ func (c *Client) streamSwitcher(raw []byte) {
 
 	stream := &Stream{Raw: raw}
 
-	// TODO: Complete all stream types handlers
+	var container interface{}
 	if _, ok := v["control"]; ok {
 	} else if _, ok := v["warning"]; ok {
+		stream.Type = "warning"
+		container = new(WarningNotice)
+		stream.WarningNotice = container.(*WarningNotice)
 	} else if d, ok := v["delete"]; ok {
 		ds := d.(map[string]interface{})
 		if _, ok = ds["status"]; ok {
 			stream.Type = "delete"
-			go c.handleStream(stream)
+			container = new(TweetDeletionNotice)
+			stream.TweetDeletionNotice = container.(*TweetDeletionNotice)
 		}
 	} else if sg, ok := v["scrub_geo"]; ok {
 		sgc := sg.(map[string]interface{})
 		if _, ok = sgc["up_to_status_id"]; ok {
-
+			stream.Type = "scrub_geo"
+			container = new(LocationDeletionNotice)
+			stream.LocationDeletionNotice = container.(*LocationDeletionNotice)
 		}
 	} else if _, ok := v["limit"]; ok {
 		stream.Type = "limit"
-		go c.handleStream(stream)
+		container = new(LimitNotice)
+		stream.LimitNotice = container.(*LimitNotice)
 	} else if _, ok := v["direct_message"]; ok {
-
+		stream.Type = "direct_message"
+		container = new(DirectMessageNotice)
+		stream.DirectMessageNotice = container.(*DirectMessageNotice)
 	} else if _, ok := v["status_withheld"]; ok {
-
+		stream.Type = "status_withheld"
+		container = new(StatusWithheldNotice)
+		stream.StatusWithheldNotice = container.(*StatusWithheldNotice)
 	} else if _, ok := v["user_withheld"]; ok {
-
+		stream.Type = "user_withheld"
+		container = new(UserWithheldNotice)
+		stream.UserWithheldNotice = container.(*UserWithheldNotice)
 	} else if _, ok := v["event"]; ok {
-
+		stream.Type = "event"
+		container = new(Event)
+		stream.Event = container.(*Event)
 	} else if _, ok := v["friends"]; ok {
 		stream.Type = "friends"
-		go c.handleStream(stream)
+		container = new(FriendsLists)
+		stream.FriendsLists = container.(*FriendsLists)
 	} else if _, ok := v["text"]; ok {
 		if _, ok = v["user"]; ok {
 			stream.Type = "tweet"
-			go c.handleStream(stream)
+			container = new(Tweet)
+			stream.Tweet = container.(*Tweet)
 		}
 	} else if _, ok := v["for_user"]; ok {
-
+		stream.Type = "for_user"
+		container = new(ForUser)
+		stream.ForUser = container.(*ForUser)
 	}
+
+	go c.handleStream(stream, container)
 }
 
 // ProcessStreamMux is stream multiplexer.
@@ -245,43 +282,56 @@ type muxEntry struct {
 	h          Handler
 }
 
+// Stream represents a twitter stream.
 type Stream struct {
-	Raw          []byte
-	Type         string
-	Tweet        *Tweet
-	LimitNotice  *LimitNotice
-	DeleteNotice *TweetDeletionNotice
-	FriendsLists *FriendsLists
-	// TODO: event, friends, etc
+	Raw                    []byte
+	Type                   string
+	Tweet                  *Tweet
+	WarningNotice          *WarningNotice
+	LimitNotice            *LimitNotice
+	TweetDeletionNotice    *TweetDeletionNotice
+	LocationDeletionNotice *LocationDeletionNotice
+	DirectMessageNotice    *DirectMessageNotice
+	FriendsLists           *FriendsLists
+	ForUser                *ForUser
+	UserWithheldNotice     *UserWithheldNotice
+	Event                  *Event
+	StatusWithheldNotice   *StatusWithheldNotice
 }
 
 var availableStreamTypes = map[string]bool{
-	"tweet":   true,
-	"limit":   true,
-	"delete":  true,
-	"friends": true,
+	"control":         true,
+	"warning":         true,
+	"scrub_geo":       true,
+	"tweet":           true,
+	"limit":           true,
+	"delete":          true,
+	"friends":         true,
+	"direct_message":  true,
+	"status_withheld": true,
+	"user_withheld":   true,
+	"for_user":        true,
 }
 
 var defaultStreamHandlers = map[string]func(*Stream){
-	"tweet": defaultTweetStreamHandler,
+	"tweet":   defaultTweetStreamHandler,
+	"friends": defaultFriendsStreamHandler,
 }
 
 func defaultTweetStreamHandler(s *Stream) {
 	log.Printf("@%v: %v\n", s.Tweet.User.ScreenName, s.Tweet.Text)
 }
+func defaultFriendsStreamHandler(s *Stream) {
+	log.Printf("@%+v\n", s.FriendsLists.Friends)
+}
 
 // handle registers the stream handler for the given stream type.
 // If a handler already exists for targetted stream type, handle
-// panics. It also panics if a given stream type is an invalid
-// stream type.
+// panics.
 func (mux *ProcessStreamMux) handle(streamType string, handler Handler) {
 	mux.mu.Lock()
 	defer mux.mu.Unlock()
 
-	// TODO: Add helper to check if given streamType is a valid one
-	if streamType == "" {
-		panic(fmt.Sprintf("twitterstream: invalid stream type %v", streamType))
-	}
 	if handler == nil {
 		panic("twitterstream: nil handler")
 	}
@@ -293,6 +343,8 @@ func (mux *ProcessStreamMux) handle(streamType string, handler Handler) {
 }
 
 // handler returns the handler to use for the given stream type.
+// If no registered handler found, it checks for default stream
+// handler. Otherwise nil is returned.
 func (mux *ProcessStreamMux) handler(streamType string) Handler {
 	mux.mu.RLock()
 	defer mux.mu.RUnlock()
@@ -323,29 +375,14 @@ func (f handlerFunc) ProcessStream(stream *Stream) {
 	f(stream)
 }
 
-func (c *Client) handleStream(stream *Stream) {
+// handleStream handles the stream.
+func (c *Client) handleStream(stream *Stream, container interface{}) {
 	h := c.streamHandleMux.handler(stream.Type)
 	if h == nil {
 		log.Printf("twitterstream: No handler for %v stream", stream.Type)
 	} else {
-		// TODO: supports all stream types
-		var v interface{}
-		switch stream.Type {
-		case "limit":
-			v = new(LimitNotice)
-			stream.LimitNotice = v.(*LimitNotice)
-		case "delete":
-			v = new(TweetDeletionNotice)
-			stream.DeleteNotice = v.(*TweetDeletionNotice)
-		case "tweet":
-			v = new(Tweet)
-			stream.Tweet = v.(*Tweet)
-		case "friend":
-			v = new(FriendsLists)
-			stream.FriendsLists = v.(*FriendsLists)
-		}
-		if v != nil {
-			err := json.Unmarshal(stream.Raw, v)
+		if container != nil {
+			err := json.Unmarshal(stream.Raw, container)
 			if err != nil {
 				log.Printf("twitterstream: Error unmarshall: %v", err)
 			} else {
@@ -357,8 +394,8 @@ func (c *Client) handleStream(stream *Stream) {
 
 // HandleFunc registers the stream handler function for the given stream type.
 func (c *Client) HandleFunc(streamType string, handler func(*Stream)) {
-	v, exists := availableStreamTypes[streamType]
-	if !v || !exists {
+	valid := isValidStreamType(streamType)
+	if !valid {
 		panic("twitterstream: unknown stream type " + streamType)
 	}
 	c.streamHandleMux.handle(streamType, handlerFunc(handler))

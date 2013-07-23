@@ -181,6 +181,24 @@ type User struct {
 	WithheldScope                  string   `json:"withheld_scope,omitempty"`
 }
 
+type DirectMessageNotice struct {
+	DirectMessage *DirectMessage `json:"direct_message,omitempty"`
+}
+
+type DirectMessage struct {
+	CreatedAt          string         `json:"created_at,omitempty"`
+	Entities           *TweetEntities `json:"entities,omitempty"`
+	ID                 int64          `json:"id,omitempty"`
+	IDStr              string         `json:"id_str,omitempty"`
+	Recipent           *User          `json:"recipent,omitempty"`
+	RecipentID         int64          `json:"recipent_id,omitempty"`
+	RecipentScreenName string         `json:"recipent_screen_name,omitempty"`
+	Sender             *User          `json:"sender,omitempty"`
+	SenderID           int64          `json:"sender_id,omitempty"`
+	SenderScreenName   string         `json:"sender_screen_name,omitempty"`
+	Text               string         `json:"text,omitempty"`
+}
+
 type TweetDeletionNotice struct {
 	Delete *TweetDeletionNoticeStatus `json:"delete,omitempty"`
 }
@@ -234,11 +252,11 @@ type UserWithheld struct {
 	WithheldInCountries []string `json:"withheld_in_countries,omitempty"`
 }
 
-type StallWarningNotice struct {
-	Warning *StallWarning `json:"warning,omitempty"`
+type WarningNotice struct {
+	Warning *Warning `json:"warning,omitempty"`
 }
 
-type StallWarning struct {
+type Warning struct {
 	Code        string  `json:"code,omitempty"`
 	Message     string  `json:"message,omitempty"`
 	PercentFull float64 `json:"percent_full,omitempty"`
@@ -286,10 +304,6 @@ type Event struct {
 
 type FriendsLists struct {
 	Friends []int64 `json:"friends,omitempty"`
-}
-
-type TooManyFollowNotice struct {
-	Warning *StallWarning `json:"warning,omitempty"`
 }
 
 type TooManyFollow struct {

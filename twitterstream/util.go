@@ -54,6 +54,15 @@ func shouldEscape(c byte) bool {
 	return true
 }
 
+func isValidStreamType(streamType string) bool {
+	v, exists := availableStreamTypes[streamType]
+	if !v || !exists {
+		return false
+	}
+
+	return true
+}
+
 func Nonce(n int) string {
 	var alphanum = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	buf := make([]byte, n)
