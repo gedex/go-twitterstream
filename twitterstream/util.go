@@ -1,3 +1,8 @@
+// Copyright 2013 The go-twitterstream AUTHORS. All rights reserved.
+//
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 package twitterstream
 
 import (
@@ -11,6 +16,10 @@ import (
 	"strings"
 )
 
+// escape escapes the string according to the RFC3986.
+// Copied from escape func from net/url pkg but with little
+// adjustment to count space as hexCount and mode always
+// encodeQueryComponent.
 func escape(s string) string {
 	hexCount := 0
 	for i := 0; i < len(s); i++ {
@@ -41,6 +50,9 @@ func escape(s string) string {
 	return string(t)
 }
 
+// shouldEscape returns true if the specified character should be escaped when
+// appearing in a URL string, according to RFC 3986.
+// When 'all' is true the full range of reserved characters are matched.
 func shouldEscape(c byte) bool {
 	if 'A' <= c && c <= 'Z' || 'a' <= c && c <= 'z' || '0' <= c && c <= '9' {
 		return false
@@ -54,6 +66,8 @@ func shouldEscape(c byte) bool {
 	return true
 }
 
+// isValidStreamType returns true if the specified streamType is a valid
+// streamType. See availableStreamTypes for defined stream types.
 func isValidStreamType(streamType string) bool {
 	v, exists := availableStreamTypes[streamType]
 	if !v || !exists {
@@ -63,6 +77,7 @@ func isValidStreamType(streamType string) bool {
 	return true
 }
 
+// Nonce returns a random string with length n.
 func Nonce(n int) string {
 	var alphanum = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	buf := make([]byte, n)
@@ -72,6 +87,10 @@ func Nonce(n int) string {
 	return string(buf)
 }
 
+// SignatureBaseString returns the signature base string
+// from a given RequestParams.
+// See https://dev.twitter.com/docs/auth/creating-signature
+// on how signature is created.
 func SignatureBaseString(rp *RequestParams) string {
 	var length int
 
@@ -106,6 +125,10 @@ func SignatureBaseString(rp *RequestParams) string {
 	return sbs
 }
 
+// Signature returns a signature from a given signature base string (sbs),
+// consumerSecret and tokenSecret.
+// See https://dev.twitter.com/docs/auth/creating-signature
+// on how signature is created.
 func Signature(consumerSecret, tokenSecret, sbs string) (string, error) {
 	key := []byte(escape(consumerSecret) + "&" + escape(tokenSecret))
 	h := hmac.New(sha1.New, key)
