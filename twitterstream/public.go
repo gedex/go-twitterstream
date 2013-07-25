@@ -49,3 +49,19 @@ func (s *PublicStreams) Filter(f map[string]string) error {
 
 	return s.client.DispatchResponse(resp)
 }
+
+func (s *PublicStreams) Firehose() error {
+	u := "statuses/firehose.json?stall_warnings=true"
+
+	req, err := s.client.NewRequest("GET", u, nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return err
+	}
+
+	return s.client.DispatchResponse(resp)
+}
